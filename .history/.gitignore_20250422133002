@@ -64,4 +64,4 @@ node_modules/
 tasks/
 
 # Coverage directory
-coverage/
+coverage/ 
