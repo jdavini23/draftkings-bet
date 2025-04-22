@@ -58,7 +58,8 @@ const mockBets = {
 
 export default async function BetPage({ params }: { params: { id: string } }) {
   // Get bet from mock data
-  const bet = mockBets[params.id as keyof typeof mockBets]
+  const betId = params.id;
+  const bet = mockBets[betId as keyof typeof mockBets];
 
   if (!bet) {
     notFound()
