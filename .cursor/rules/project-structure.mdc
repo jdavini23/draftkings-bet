@@ -1,0 +1,19 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Project Structure Guide
+
+This project is organized as follows:
+
+- The main application code resides in the [app/](mdc:app) directory.
+- API endpoints are located in [app/api/](mdc:app/api).
+- UI components are in [components/](mdc:components), with shared UI elements in [components/ui/](mdc:components/ui).
+- Shared logic and utilities are in [lib/](mdc:lib) and [hooks/](mdc:hooks).
+- TypeScript types are defined in [types/](mdc:types) and [draftkings-bet/types/](mdc:draftkings-bet/types).
+- Static assets are in [public/](mdc:public).
+- Configuration files include [package.json](mdc:package.json), [tsconfig.json](mdc:tsconfig.json), [tailwind.config.ts](mdc:tailwind.config.ts), and [next.config.mjs](mdc:next.config.mjs).
+- Environment variables are managed in [.env.local](mdc:.env.local) and [.env.example](mdc:.env.example).
+
+Refer to this guide for high-level navigation of the codebase.

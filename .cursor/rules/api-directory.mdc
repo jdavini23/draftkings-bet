@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# API Directory Guide
+
+The [app/api/](mdc:app/api) directory contains all API endpoints for the project. Each subfolder typically represents a different API route or feature area:
+
+- [cron/update-odds/](mdc:app/api/cron/update-odds) — Handles scheduled odds updates.
+- [fetch-odds/](mdc:app/api/fetch-odds) — Fetches odds from external sources.
+- [seed/](mdc:app/api/seed), [seed-simple/](mdc:app/api/seed-simple), [seed-sports/](mdc:app/api/seed-sports) — Seeding endpoints for initializing or updating data.
+- [test-supabase/](mdc:app/api/test-supabase) — For testing Supabase integration.
+- [update-bet-results/](mdc:app/api/update-bet-results) — Updates bet results.
+
+Each folder may contain route handlers, utility files, and configuration specific to that API endpoint. Refer to this guide when working with backend logic or API integrations.

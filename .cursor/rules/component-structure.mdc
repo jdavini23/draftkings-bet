@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Component Structure Guide
+
+The [components/](mdc:components) directory contains all React components used throughout the project.
+
+- Shared UI elements and reusable primitives are located in [components/ui/](mdc:components/ui).
+- Feature-specific components are organized in their own subfolders within [components/](mdc:components), following the feature or domain they support.
+
+When creating new components, place shared or generic UI elements in the `ui` subfolder, and feature-specific components in a relevant subfolder or at the root of `components/` if not part of a larger feature set.
+
+This structure helps maintain separation of concerns and promotes reusability across the codebase.
