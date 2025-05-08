@@ -40,7 +40,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { getBrowserClient } from '@/lib/supabase';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -65,55 +64,31 @@ export function BetOpportunities() {
   const [opportunities, setOpportunities] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const supabase = getBrowserClient();
-
   useEffect(() => {
     const fetchBets = async () => {
       setLoading(true);
 
-      // Fetch active bets from Supabase
-      const { data, error } = await supabase
-        .from('bets')
-        .select('*')
-        .eq('status', 'active')
-        .order('event_time', { ascending: true });
+      try {
+        const response = await fetch('/api/get-bets');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch bets: ${response.status}`);
+        }
+        const { data, error } = await response.json();
 
-      if (error) {
-        console.error('[DEBUG] Error fetching bets:', error);
-        try {
-          console.error('[DEBUG] Error (stringified):', JSON.stringify(error));
-        } catch (e) {}
-        // Log presence of public config only
-        console.error('[DEBUG] Supabase client config:', {
-          supabaseClientType: typeof supabase,
-          // You can add more public info if needed
-        });
-      } else {
-        console.log('[DEBUG] Bets fetched successfully:', data);
-        setOpportunities(data || []);
+        if (error) {
+          console.error('Error fetching bets:', error);
+        } else {
+          console.log('Bets fetched successfully:', data);
+          setOpportunities(data || []);
+        }
+      } catch (error: any) {
+        console.error('Error fetching bets:', error);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     fetchBets();
-
-    // Set up a real-time subscription for new bets
-    const subscription = supabase
-      .channel('bets-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'bets' },
-        () => {
-          // Refresh the data when changes occur
-          fetchBets();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   const getConfidenceBadge = (confidence: string) => {

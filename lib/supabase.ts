@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/supabase';
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 
 // Create a single supabase client for the browser
 const createBrowserClient = () => {
@@ -7,9 +7,9 @@ const createBrowserClient = () => {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase environment variables for browser client');
+    console.error("Missing Supabase environment variables for browser client");
     throw new Error(
-      'Missing required environment variables for Supabase browser client'
+      "Missing required environment variables for Supabase browser client"
     );
   }
 
@@ -23,7 +23,7 @@ const createServerClient = () => {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('[DEBUG] Supabase env check:', {
+    console.error("[DEBUG] Supabase env check:", {
       SUPABASE_URL_present: Boolean(process.env.SUPABASE_URL),
       NEXT_PUBLIC_SUPABASE_URL_present: Boolean(
         process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -32,9 +32,9 @@ const createServerClient = () => {
         process.env.SUPABASE_SERVICE_ROLE_KEY
       ),
     });
-    console.error('Missing Supabase environment variables for server client');
+    console.error("Missing Supabase environment variables for server client");
     throw new Error(
-      'Missing required environment variables for Supabase server client'
+      "Missing required environment variables for Supabase server client"
     );
   }
 
@@ -56,5 +56,6 @@ export const getBrowserClient = () => {
 };
 
 export const getServerClient = () => {
+  console.log("getServerClient called");
   return createServerClient();
 };
