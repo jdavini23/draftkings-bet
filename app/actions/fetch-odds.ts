@@ -8,15 +8,44 @@ export async function fetchOdds() {
   try {
     // Get all active sports
     const supabase = getServerClient()
-    const { data: sports, error: sportsError } = await supabase.from("sports").select("key, name").eq("active", true)
+
+    // Define the specific sport keys for basketball, football, and baseball
+    const targetSportKeys = [
+      "basketball_nba",       // NBA Basketball
+      "americanfootball_nfl", // NFL Football
+      "baseball_mlb"          // MLB Baseball
+      // You can add more specific keys here if you track other leagues,
+      // e.g., "americanfootball_ncaaf", "basketball_ncaab"
+    ];
+
+    const { data: sports, error: sportsError } = await supabase
+      .from("sports")
+      .select("key, name, has_outrights")
+      .eq("active", true)
+      .in("key", targetSportKeys); // Filter by the specified sport keys
 
     if (sportsError) {
-      console.error("Error fetching sports:", sportsError)
-      return { success: false, error: `Failed to fetch sports: ${sportsError.message}` }
+      console.error("Error fetching sports:", sportsError);
+      return { success: false, error: `Failed to fetch sports: ${sportsError.message}` };
     }
 
-    // If no sports found, try to fetch NBA data as a fallback
-    const sportsToFetch = sports && sports.length > 0 ? sports : [{ key: "basketball_nba", name: "NBA Basketball" }]
+    // Use the filtered sports directly. If no matching sports are found (or none are active),
+    // sportsToFetch will be an empty array.
+    const sportsToFetch = sports || [];
+
+    if (sportsToFetch.length === 0) {
+      console.log(
+        "No active sports found matching the desired keys (basketball_nba, americanfootball_nfl, baseball_mlb). No odds will be fetched."
+      );
+      // Revalidate the path to ensure the UI reflects that no new odds were fetched.
+      revalidatePath("/");
+      return {
+        success: true,
+        message:
+          "No active sports found for basketball, football, or baseball. Zero betting opportunities fetched.",
+        results: [],
+      };
+    }
 
     let totalBets = 0
     const results = []
@@ -26,8 +55,19 @@ export async function fetchOdds() {
       try {
         console.log(`Fetching odds for ${sport.name}...`)
 
-        // Fetch odds directly from the API
-        const response = await fetchOddsFromApi(sport.key)
+        // Determine market types based on sport properties
+        let marketQueryParam = "h2h,spreads,totals" // Default for most sports
+        // Assuming 'sport' now has a 'has_outrights' boolean property
+        // or we infer from the key.
+        const isOutrightSport =
+          sport.has_outrights || sport.key.includes("_winner") || sport.key.includes("futures") || sport.key.startsWith("politics_")
+
+        if (isOutrightSport) {
+          marketQueryParam = "outrights" // Use 'outrights' for sports like election winner, tournament winner
+        }
+
+        // Fetch odds directly from the API with dynamic markets
+        const response = await fetchOddsFromApi(sport.key, marketQueryParam)
 
         if (!response.success) {
           console.error(`Failed to fetch odds for ${sport.name}:`, response)
@@ -40,15 +80,29 @@ export async function fetchOdds() {
         }
 
         // Transform the data
-        const bets = transformOddsData(response.data)
-        console.log(`Found ${bets.length} betting opportunities for ${sport.name}`)
+        const rawBets = transformOddsData(response.data)
+        console.log(`Found ${rawBets.length} raw betting opportunities for ${sport.name}`)
+
+        // De-duplicate bets before upserting
+        const uniqueBetsMap = new Map()
+        rawBets.forEach(bet => {
+          const key = `${bet.match}-${bet.market}-${bet.selection}`
+          if (!uniqueBetsMap.has(key)) {
+            uniqueBetsMap.set(key, bet)
+          } else {
+            // Optionally, log that a duplicate was found and skipped from the batch
+            console.log(`Duplicate bet in batch skipped for key: ${key}, sport: ${sport.name}`)
+          }
+        })
+        const bets = Array.from(uniqueBetsMap.values()) // 'bets' is now the de-duplicated array
+        console.log(`Found ${bets.length} unique betting opportunities for ${sport.name} after de-duplication`)
 
         if (bets.length === 0) {
           results.push({
             sport: sport.name,
             success: true,
             count: 0,
-            message: "No betting opportunities found",
+            message: "No unique betting opportunities found after de-duplication",
           })
           continue
         }
@@ -58,10 +112,17 @@ export async function fetchOdds() {
           .from("bets")
           .upsert(
             bets.map((bet) => ({
-              ...bet,
-              // Use a deterministic ID based on the match, market, and selection
-              // This prevents duplicates when refreshing the data
-              id: crypto.randomUUID(),
+              sport: bet.sport,
+              match: bet.match,
+              market: bet.market,
+              selection: bet.selection,
+              odds: bet.odds,
+              book_odds: bet.book_odds,
+              edge_percentage: bet.edge_percentage,
+              expected_value: bet.expected_value,
+              event_time: bet.event_time,
+              confidence: bet.confidence,
+              status: bet.status,
               updated_at: new Date().toISOString(),
             })),
             { onConflict: "match,market,selection" },
@@ -80,9 +141,9 @@ export async function fetchOdds() {
 
         // For each bet, add an entry to odds_history
         const oddsHistoryEntries =
-          data?.map((bet) => ({
-            bet_id: bet.id,
-            odds: bet.odds,
+          data?.map((betEntry) => ({
+            bet_id: betEntry.id,
+            odds: betEntry.odds,
             recorded_at: new Date().toISOString(),
           })) || []
 

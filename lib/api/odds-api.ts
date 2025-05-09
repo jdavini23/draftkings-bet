@@ -36,7 +36,10 @@ export interface OddsApiOutcome {
 }
 
 // Function to fetch odds from The Odds API
-export async function fetchOddsFromApi(sportKey: string): Promise<OddsApiResponse> {
+export async function fetchOddsFromApi(
+  sportKey: string,
+  marketTypes: string = "h2h,spreads,totals", // Default to common markets
+): Promise<OddsApiResponse> {
   const apiKey = process.env.ODDS_API_KEY
 
   if (!apiKey) {
@@ -44,7 +47,7 @@ export async function fetchOddsFromApi(sportKey: string): Promise<OddsApiRespons
     throw new Error("ODDS_API_KEY environment variable is not set")
   }
 
-  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&oddsFormat=american&bookmakers=draftkings`
+  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us&markets=${marketTypes}&oddsFormat=american&bookmakers=draftkings`
 
   try {
     console.log(`Fetching odds from: ${url.replace(apiKey, "API_KEY_HIDDEN")}`)

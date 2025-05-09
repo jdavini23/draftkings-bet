@@ -14,9 +14,10 @@ import Link from "next/link"
 
 export default async function BetPage({ params }: { params: { id: string } }) {
   const supabase = getServerClient()
+  const { id } = params;
 
   // Fetch bet details
-  const { data: bet, error } = await supabase.from("bets").select("*").eq("id", params.id).single()
+  const { data: bet, error } = await supabase.from("bets").select("*").eq("id", id).single()
 
   if (error || !bet) {
     console.error("Error fetching bet:", error)
@@ -27,7 +28,7 @@ export default async function BetPage({ params }: { params: { id: string } }) {
   const { data: oddsHistory } = await supabase
     .from("odds_history")
     .select("*")
-    .eq("bet_id", params.id)
+    .eq("bet_id", id)
     .order("recorded_at", { ascending: true })
 
   return (
