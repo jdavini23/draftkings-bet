@@ -1,19 +1,20 @@
-"use server"
+"use server";
 
-import { revalidatePath } from "next/cache"
-import { fetchOddsFromApi, transformOddsData } from "@/lib/api/odds-api"
-import { getServerClient } from "@/lib/supabase"
+import { revalidatePath } from "next/cache";
+import { fetchOddsFromApi, transformOddsData } from "@/lib/api/odds-api";
+import { getServerClient } from "@/lib/supabase";
+import { BetSchema } from "@/types/zod";
 
 export async function fetchOdds() {
   try {
     // Get all active sports
-    const supabase = getServerClient()
+    const supabase = getServerClient();
 
     // Define the specific sport keys for basketball, football, and baseball
     const targetSportKeys = [
-      "basketball_nba",       // NBA Basketball
+      "basketball_nba", // NBA Basketball
       "americanfootball_nfl", // NFL Football
-      "baseball_mlb"          // MLB Baseball
+      "baseball_mlb", // MLB Baseball
       // You can add more specific keys here if you track other leagues,
       // e.g., "americanfootball_ncaaf", "basketball_ncaab"
     ];
@@ -22,11 +23,14 @@ export async function fetchOdds() {
       .from("sports")
       .select("key, name, has_outrights")
       .eq("active", true)
-      .in("key", targetSportKeys); // Filter by the specified sport keys
+      .in("key", targetSportKeys);
 
     if (sportsError) {
       console.error("Error fetching sports:", sportsError);
-      return { success: false, error: `Failed to fetch sports: ${sportsError.message}` };
+      return {
+        success: false,
+        error: `Failed to fetch sports: ${sportsError.message}`,
+      };
     }
 
     // Use the filtered sports directly. If no matching sports are found (or none are active),
@@ -47,96 +51,114 @@ export async function fetchOdds() {
       };
     }
 
-    let totalBets = 0
-    const results = []
+    let totalBets = 0;
+    const results = [];
 
     // Fetch odds for each sport
     for (const sport of sportsToFetch) {
       try {
-        console.log(`Fetching odds for ${sport.name}...`)
+        console.log(`Fetching odds for ${sport.name}...`);
 
         // Determine market types based on sport properties
-        let marketQueryParam = "h2h,spreads,totals" // Default for most sports
+        let marketQueryParam = "h2h,spreads,totals"; // Default for most sports
         // Assuming 'sport' now has a 'has_outrights' boolean property
         // or we infer from the key.
         const isOutrightSport =
-          sport.has_outrights || sport.key.includes("_winner") || sport.key.includes("futures") || sport.key.startsWith("politics_")
+          sport.has_outrights ||
+          sport.key.includes("_winner") ||
+          sport.key.includes("futures") ||
+          sport.key.startsWith("politics_");
 
         if (isOutrightSport) {
-          marketQueryParam = "outrights" // Use 'outrights' for sports like election winner, tournament winner
+          marketQueryParam = "outrights"; // Use 'outrights' for sports like election winner, tournament winner
         }
 
         // Fetch odds directly from the API with dynamic markets
-        const response = await fetchOddsFromApi(sport.key, marketQueryParam)
+        const oddsData = await fetchOddsFromApi(sport.key, marketQueryParam);
 
-        if (!response.success) {
-          console.error(`Failed to fetch odds for ${sport.name}:`, response)
+        if (!oddsData || oddsData.length === 0) {
+          console.error(`Failed to fetch odds for ${sport.name}:`, oddsData);
           results.push({
             sport: sport.name,
             success: false,
             message: "Failed to fetch odds from API",
-          })
-          continue
+          });
+          continue;
         }
 
         // Transform the data
-        const rawBets = transformOddsData(response.data)
-        console.log(`Found ${rawBets.length} raw betting opportunities for ${sport.name}`)
+        const rawBets = transformOddsData(oddsData);
+        console.log(
+          `Found ${rawBets.length} raw betting opportunities for ${sport.name}`
+        );
 
         // De-duplicate bets before upserting
-        const uniqueBetsMap = new Map()
-        rawBets.forEach(bet => {
-          const key = `${bet.match}-${bet.market}-${bet.selection}`
+        const uniqueBetsMap = new Map();
+        rawBets.forEach((bet) => {
+          const key = `${bet.match}-${bet.market}-${bet.selection}`;
           if (!uniqueBetsMap.has(key)) {
-            uniqueBetsMap.set(key, bet)
+            uniqueBetsMap.set(key, bet);
           } else {
             // Optionally, log that a duplicate was found and skipped from the batch
-            console.log(`Duplicate bet in batch skipped for key: ${key}, sport: ${sport.name}`)
+            console.log(
+              `Duplicate bet in batch skipped for key: ${key}, sport: ${sport.name}`
+            );
           }
-        })
-        const bets = Array.from(uniqueBetsMap.values()) // 'bets' is now the de-duplicated array
-        console.log(`Found ${bets.length} unique betting opportunities for ${sport.name} after de-duplication`)
+        });
+        const bets = Array.from(uniqueBetsMap.values()); // 'bets' is now the de-duplicated array
+        console.log(
+          `Found ${bets.length} unique betting opportunities for ${sport.name} after de-duplication`
+        );
 
         if (bets.length === 0) {
           results.push({
             sport: sport.name,
             success: true,
             count: 0,
-            message: "No unique betting opportunities found after de-duplication",
-          })
-          continue
+            message:
+              "No unique betting opportunities found after de-duplication",
+          });
+          continue;
         }
 
         // Store in Supabase
         const { data, error } = await supabase
           .from("bets")
           .upsert(
-            bets.map((bet) => ({
-              sport: bet.sport,
-              match: bet.match,
-              market: bet.market,
-              selection: bet.selection,
-              odds: bet.odds,
-              book_odds: bet.book_odds,
-              edge_percentage: bet.edge_percentage,
-              expected_value: bet.expected_value,
-              event_time: bet.event_time,
-              confidence: bet.confidence,
-              status: bet.status,
-              updated_at: new Date().toISOString(),
-            })),
-            { onConflict: "match,market,selection" },
+            bets.map((bet) => {
+              // Validate each bet before upserting
+              const validatedBet = BetSchema.safeParse(bet);
+              if (!validatedBet.success) {
+                console.error("Error validating bet:", validatedBet.error);
+                throw new Error("Error validating bet"); // Stop processing if any bet is invalid
+              }
+              return {
+                sport: validatedBet.data.sport,
+                match: validatedBet.data.match,
+                market: validatedBet.data.market,
+                selection: validatedBet.data.selection,
+                odds: validatedBet.data.odds,
+                book_odds: validatedBet.data.book_odds,
+                edge_percentage: validatedBet.data.edge_percentage,
+                expected_value: validatedBet.data.expected_value,
+                event_time: validatedBet.data.event_time,
+                confidence: validatedBet.data.confidence,
+                status: validatedBet.data.status,
+                updated_at: new Date().toISOString(),
+              };
+            }),
+            { onConflict: "match,market,selection" }
           )
-          .select()
+          .select();
 
         if (error) {
-          console.error(`Error storing bets for ${sport.name}:`, error)
+          console.error(`Error storing bets for ${sport.name}:`, error);
           results.push({
             sport: sport.name,
             success: false,
             message: `Failed to store bets in database: ${error.message}`,
-          })
-          continue
+          });
+          continue;
         }
 
         // For each bet, add an entry to odds_history
@@ -145,46 +167,51 @@ export async function fetchOdds() {
             bet_id: betEntry.id,
             odds: betEntry.odds,
             recorded_at: new Date().toISOString(),
-          })) || []
+          })) || [];
 
         if (oddsHistoryEntries.length > 0) {
-          const { error: historyError } = await supabase.from("odds_history").insert(oddsHistoryEntries)
+          const { error: historyError } = await supabase
+            .from("odds_history")
+            .insert(oddsHistoryEntries);
 
           if (historyError) {
-            console.error(`Error storing odds history for ${sport.name}:`, historyError)
+            console.error(
+              `Error storing odds history for ${sport.name}:`,
+              historyError
+            );
           }
         }
 
-        totalBets += bets.length
+        totalBets += bets.length;
         results.push({
           sport: sport.name,
           success: true,
           count: bets.length,
-        })
+        });
       } catch (error) {
-        console.error(`Error processing ${sport.name}:`, error)
+        console.error(`Error processing ${sport.name}:`, error);
         results.push({
           sport: sport.name,
           success: false,
           message: "Error processing sport",
           error: error instanceof Error ? error.message : String(error),
-        })
+        });
       }
     }
 
     // Revalidate the dashboard page to show updated data
-    revalidatePath("/")
+    revalidatePath("/");
 
     return {
       success: true,
       message: `Successfully fetched and stored ${totalBets} betting opportunities`,
       results,
-    }
+    };
   } catch (error) {
-    console.error("Error fetching odds:", error)
+    console.error("Error fetching odds:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
-    }
+    };
   }
 }

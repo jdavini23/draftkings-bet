@@ -42,6 +42,14 @@ import {
 } from '@/components/ui/tooltip';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import {
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination"
+import { ArrowDown, ArrowUp } from "lucide-react"
 
 export interface Bet {
   id: string;
@@ -64,22 +72,31 @@ export function BetOpportunities() {
   const [opportunities, setOpportunities] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sortColumn, setSortColumn] = useState<keyof Bet>("event_time");
+  const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
+
   useEffect(() => {
     const fetchBets = async () => {
       setLoading(true);
 
       try {
-        const response = await fetch('/api/get-bets');
+        const response = await fetch(
+          `/api/get-bets?page=${page}&pageSize=${pageSize}&sortColumn=${sortColumn}&sortDirection=${sortDirection}`
+        );
         if (!response.ok) {
           throw new Error(`Failed to fetch bets: ${response.status}`);
         }
-        const { data, error } = await response.json();
+        const { data, error, count } = await response.json();
 
         if (error) {
           console.error('Error fetching bets:', error);
         } else {
           console.log('Bets fetched successfully:', data);
           setOpportunities(data || []);
+          setTotalCount(count || 0);
         }
       } catch (error: any) {
         console.error('Error fetching bets:', error);
@@ -89,7 +106,7 @@ export function BetOpportunities() {
     };
 
     fetchBets();
-  }, []);
+  }, [page, pageSize, sortColumn, sortDirection]);
 
   const getConfidenceBadge = (confidence: string) => {
     switch (confidence) {
@@ -99,8 +116,6 @@ export function BetOpportunities() {
         return <Badge className="bg-yellow-500">Medium</Badge>;
       case 'low':
         return <Badge className="bg-red-500">Low</Badge>;
-      default:
-        return <Badge>Unknown</Badge>;
     }
   };
 
@@ -111,6 +126,24 @@ export function BetOpportunities() {
 
   const handleRowClick = (betId: string) => {
     router.push(`/bets/${betId}`);
+  };
+
+  const pageCount = Math.ceil(totalCount / pageSize);
+
+  const handleSort = (column: keyof Bet) => {
+    if (column === sortColumn) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortIcon = (column: keyof Bet) => {
+    if (column === sortColumn) {
+      return sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
+    }
+    return null;
   };
 
   return (
@@ -158,104 +191,111 @@ export function BetOpportunities() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Sport</TableHead>
-                <TableHead>Match</TableHead>
-                <TableHead>Market/Selection</TableHead>
-                <TableHead>
-                  <div className="flex items-center">
-                    DK Odds
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <InfoIcon className="ml-1 h-4 w-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Current odds on DraftKings</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </TableHead>
-                <TableHead>
-                  <div className="flex items-center">
-                    Edge %
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <InfoIcon className="ml-1 h-4 w-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Percentage edge over fair odds</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </TableHead>
-                <TableHead>EV</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Confidence</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOpportunities.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-4">
-                    No betting opportunities found. Try fetching the latest
-                    odds.
-                  </TableCell>
+                  <TableHead onClick={() => handleSort("sport")} className="cursor-pointer">
+                    Sport {getSortIcon("sport")}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("match")} className="cursor-pointer">
+                    Match {getSortIcon("match")}
+                  </TableHead>
+                  <TableHead>Market/Selection</TableHead>
+                  <TableHead onClick={() => handleSort("odds")} className="cursor-pointer">
+                    DK Odds {getSortIcon("odds")}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort("edge_percentage")} className="cursor-pointer">
+                    Edge % {getSortIcon("edge_percentage")}
+                  </TableHead>
+                  <TableHead>EV</TableHead>
+                  <TableHead onClick={() => handleSort("event_time")} className="cursor-pointer">
+                    Time {getSortIcon("event_time")}
+                  </TableHead>
+                  <TableHead>Confidence</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ) : (
-                filteredOpportunities.map((opportunity) => (
-                  <TableRow
-                    key={opportunity.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => handleRowClick(opportunity.id)}
-                  >
-                    <TableCell>{opportunity.sport}</TableCell>
-                    <TableCell>{opportunity.match}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{opportunity.market}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {opportunity.selection}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{opportunity.odds}</TableCell>
-                    <TableCell className="font-medium text-green-600">
-                      {opportunity.edge_percentage}%
-                    </TableCell>
-                    <TableCell>{opportunity.expected_value}</TableCell>
-                    <TableCell>
-                      {new Date(opportunity.event_time).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      {getConfidenceBadge(opportunity.confidence)}
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <BookmarkIcon className="h-4 w-4" />
-                          <span className="sr-only">Save</span>
-                        </Button>
-                        <Link href={`/bets/${opportunity.id}`} passHref>
-                          <Button variant="outline" size="sm">
-                            <ExternalLinkIcon className="h-4 w-4" />
-                            <span className="sr-only">View</span>
-                          </Button>
-                        </Link>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {filteredOpportunities.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-4">
+                      No betting opportunities found. Try fetching the latest
+                      odds.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  filteredOpportunities.slice((page - 1) * pageSize, page * pageSize).map((opportunity) => (
+                    <TableRow
+                      key={opportunity.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleRowClick(opportunity.id)}
+                    >
+                      <TableCell>{opportunity.sport}</TableCell>
+                      <TableCell>{opportunity.match}</TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{opportunity.market}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {opportunity.selection}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{opportunity.odds}</TableCell>
+                      <TableCell className="font-medium text-green-600">
+                        {opportunity.edge_percentage}%
+                      </TableCell>
+                      <TableCell>{opportunity.expected_value}</TableCell>
+                      <TableCell>
+                        {new Date(opportunity.event_time).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        {getConfidenceBadge(opportunity.confidence)}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm">
+                            <BookmarkIcon className="h-4 w-4" />
+                            <span className="sr-only">Save</span>
+                          </Button>
+                          <Link href={`/bets/${opportunity.id}`} passHref>
+                            <Button variant="outline" size="sm">
+                              <ExternalLinkIcon className="h-4 w-4" />
+                              <span className="sr-only">View</span>
+                            </Button>
+                          </Link>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         )}
+        <div className="flex items-center justify-center pt-4">
+          <PaginationContent>
+            <PaginationPrevious
+              href="#"
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            />
+            {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => (
+              <PaginationItem key={p}>
+                <PaginationLink
+                  href="#"
+                  isActive={p === page}
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationNext
+              href="#"
+              onClick={() => setPage((prev) => Math.min(prev + 1, pageCount))}
+            />
+          </PaginationContent>
+        </div>
       </CardContent>
       <CardFooter className="flex justify-between">
         <Button variant="outline">Export to CSV</Button>

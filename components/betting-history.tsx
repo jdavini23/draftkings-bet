@@ -16,6 +16,14 @@ import {
 import { ChevronDown, FilterIcon } from "lucide-react"
 import { getBrowserClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import {
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination"
+import { ArrowDown, ArrowUp } from "lucide-react"
 
 interface Bet {
   id: string
@@ -40,22 +48,31 @@ export function BettingHistory() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = getBrowserClient()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalCount, setTotalCount] = useState(0)
+  const [sortColumn, setSortColumn] = useState<keyof Bet>("event_time")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   useEffect(() => {
     const fetchBettingHistory = async () => {
       setLoading(true)
 
       // Fetch completed bets from Supabase
-      const { data, error } = await supabase
+      let query = supabase
         .from("bets")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("status", "completed")
-        .order("event_time", { ascending: false })
+        .order(sortColumn, { ascending: sortDirection === "asc" })
+        .range((page - 1) * pageSize, page * pageSize - 1)
+
+      const { data, error, count } = await query
 
       if (error) {
         console.error("Error fetching betting history:", error)
       } else {
         setBettingHistory(data || [])
+        setTotalCount(count || 0)
       }
 
       setLoading(false)
@@ -75,7 +92,7 @@ export function BettingHistory() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [page, pageSize, sortColumn, sortDirection])
 
   const getResultBadge = (result: string | null) => {
     if (!result) return null
@@ -96,6 +113,24 @@ export function BettingHistory() {
 
   const handleRowClick = (betId: string) => {
     router.push(`/bets/${betId}`)
+  }
+
+  const pageCount = Math.ceil(totalCount / pageSize)
+
+  const handleSort = (column: keyof Bet) => {
+    if (column === sortColumn) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortColumn(column)
+      setSortDirection("asc")
+    }
+  }
+
+  const getSortIcon = (column: keyof Bet) => {
+    if (column === sortColumn) {
+      return sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+    }
+    return null
   }
 
   return (
@@ -136,12 +171,22 @@ export function BettingHistory() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Sport</TableHead>
-                <TableHead>Match</TableHead>
+                <TableHead onClick={() => handleSort("event_time")} className="cursor-pointer">
+                  Date {getSortIcon("event_time")}
+                </TableHead>
+                <TableHead onClick={() => handleSort("sport")} className="cursor-pointer">
+                  Sport {getSortIcon("sport")}
+                </TableHead>
+                <TableHead onClick={() => handleSort("match")} className="cursor-pointer">
+                  Match {getSortIcon("match")}
+                </TableHead>
                 <TableHead>Market/Selection</TableHead>
-                <TableHead>Odds</TableHead>
-                <TableHead>Edge %</TableHead>
+                <TableHead onClick={() => handleSort("odds")} className="cursor-pointer">
+                  Odds {getSortIcon("odds")}
+                </TableHead>
+                <TableHead onClick={() => handleSort("edge_percentage")} className="cursor-pointer">
+                  Edge % {getSortIcon("edge_percentage")}
+                </TableHead>
                 <TableHead>Result</TableHead>
               </TableRow>
             </TableHeader>
@@ -153,7 +198,7 @@ export function BettingHistory() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredHistory.map((bet) => (
+                filteredHistory.slice((page - 1) * pageSize, page * pageSize).map((bet) => (
                   <TableRow
                     key={bet.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -177,6 +222,29 @@ export function BettingHistory() {
             </TableBody>
           </Table>
         )}
+        <div className="flex items-center justify-center pt-4">
+          <PaginationContent>
+            <PaginationPrevious
+              href="#"
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            />
+            {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => (
+              <PaginationItem key={p}>
+                <PaginationLink
+                  href="#"
+                  isActive={p === page}
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationNext
+              href="#"
+              onClick={() => setPage((prev) => Math.min(prev + 1, pageCount))}
+            />
+          </PaginationContent>
+        </div>
       </CardContent>
     </Card>
   )
