@@ -125,6 +125,15 @@ function FetchOddsButton() {
           variant: 'destructive',
         });
       }
+      if (result.notifications && Array.isArray(result.notifications)) {
+        result.notifications.forEach((msg) =>
+          toast({
+            title: 'Notice',
+            description: msg,
+            variant: msg.toLowerCase().includes('fail') || msg.toLowerCase().includes('warning') ? 'destructive' : 'default',
+          })
+        );
+      }
     } catch (error) {
       toast({
         title: 'Error',

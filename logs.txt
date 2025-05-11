@@ -91,3 +91,6 @@ sportsUrl: https://api.the-odds-api.com/v4/sports?apiKey=bfe9de168f53ef81d3e4478
 apiUrl: https://api.the-odds-api.com/v4
 apiKey: bfe9de168f53ef81d3e4478611723f17
 sportsUrl: https://api.the-odds-api.com/v4/sports?apiKey=bfe9de168f53ef81d3e4478611723f17
+apiUrl: https://api.the-odds-api.com
+apiKey: bfe9de168f53ef81d3e4478611723f17
+sportsUrl: https://api.the-odds-api.com/sports?apiKey=bfe9de168f53ef81d3e4478611723f17

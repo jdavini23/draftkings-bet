@@ -14,8 +14,9 @@ import { z } from "zod";
 // Function to fetch odds from The Odds API
 export async function fetchOddsFromApi(
   sportKey: string,
-  marketTypes: string = "h2h,spreads,totals" // Default to common markets
-): Promise<OddsApiResponse> {
+  marketTypes: string = "h2h,spreads,totals",
+  returnHeaders: boolean = false
+): Promise<any> {
   const apiKey = process.env.ODDS_API_KEY;
 
   if (!apiKey) {
@@ -40,6 +41,9 @@ export async function fetchOddsFromApi(
       console.error(
         `API request failed with status ${response.status}: ${errorText}`
       );
+      if (returnHeaders) {
+        return { data: [], quotaRemaining: response.headers.get("x-requests-remaining"), status: response.status };
+      }
       throw new Error(
         `API request failed with status ${response.status}: ${errorText}`
       );
@@ -52,20 +56,49 @@ export async function fetchOddsFromApi(
 
     if (!validatedData.success) {
       console.error("Error validating Odds API response:", validatedData.error);
+      if (returnHeaders) {
+        return { data: [], quotaRemaining: response.headers.get("x-requests-remaining"), status: response.status };
+      }
       return [];
     }
 
+    if (returnHeaders) {
+      return {
+        data: validatedData.data,
+        quotaRemaining: response.headers.get("x-requests-remaining"),
+        status: response.status,
+      };
+    }
     return validatedData.data;
   } catch (error) {
     console.error("Error fetching odds:", error);
+    if (returnHeaders) {
+      return { data: [], quotaRemaining: undefined, status: 500 };
+    }
     return [];
   }
+}
+
+// Improved confidence scoring function
+function getConfidence(edge: number, marketType: string, timeToEventMs: number): "low" | "medium" | "high" {
+  let score = 0;
+  if (edge > 7) score += 2;
+  else if (edge > 4) score += 1;
+
+  if (["Spread", "Moneyline", "Total"].includes(marketType)) score += 1;
+
+  if (timeToEventMs < 2 * 60 * 60 * 1000) score += 1; // <2 hours
+  else if (timeToEventMs < 6 * 60 * 60 * 1000) score += 0.5; // 2-6 hours
+
+  if (score >= 4) return "high";
+  if (score >= 2) return "medium";
+  return "low";
 }
 
 // Function to transform API data into our database format
 export function transformOddsData(
   apiData: OddsApiEvent[],
-  fairOddsAdjustment = 0.05
+  _fairOddsAdjustment = 0.05 // unused, kept for backward compatibility
 ) {
   const bets = [];
 
@@ -77,12 +110,31 @@ export function transformOddsData(
 
     // Process each market
     for (const market of dkBookmaker.markets) {
+      // Calculate implied probabilities for all outcomes in this market
+      const impliedProbs = market.outcomes.map((outcome) => {
+        const dec = americanToDecimal(outcome.price);
+        return 1 / dec;
+      });
+      const totalProb = impliedProbs.reduce((a, b) => a + b, 0);
+      // Remove vig
+      const fairProbs = impliedProbs.map((p) => p / totalProb);
+      // Convert back to American odds for each outcome
+      const fairOddsArr = fairProbs.map((p) => {
+        if (p === 0) return 0;
+        if (p > 0.5) {
+          // favorite
+          return Math.round(-100 * p / (1 - p));
+        } else {
+          // underdog
+          return Math.round(100 * (1 - p) / p);
+        }
+      });
+
       // Process each outcome in the market
-      for (const outcome of market.outcomes) {
-        // Calculate fair odds (for demo purposes, we're just adjusting by a percentage)
-        // In a real app, you'd have your own model for fair odds
+      for (let i = 0; i < market.outcomes.length; i++) {
+        const outcome = market.outcomes[i];
         const dkOdds = outcome.price;
-        const fairOdds = calculateFairOdds(dkOdds, fairOddsAdjustment);
+        const fairOdds = fairOddsArr[i];
 
         // Calculate edge and EV
         const edge = calculateEdge(dkOdds, fairOdds);
@@ -97,10 +149,10 @@ export function transformOddsData(
             selectionName += ` ${outcome.point > 0 ? "+" : ""}${outcome.point}`;
           }
 
-          // Determine confidence level based on edge
-          let confidence = "low";
-          if (edge > 7) confidence = "high";
-          else if (edge > 4) confidence = "medium";
+          // Calculate time to event in ms
+          const timeToEventMs = new Date(event.commence_time).getTime() - Date.now();
+          // Use improved confidence logic
+          const confidence = getConfidence(edge, formatMarketName(market.key), timeToEventMs);
 
           bets.push({
             id: uuidv4(),
@@ -123,26 +175,6 @@ export function transformOddsData(
   }
 
   return bets;
-}
-
-// Helper function to calculate fair odds
-function calculateFairOdds(dkOdds: number, adjustment: number): number {
-  // Convert to decimal, adjust, and convert back to American
-  const decimalOdds = americanToDecimal(dkOdds);
-
-  // For favorites (negative odds), increase the fair odds (make them worse)
-  // For underdogs (positive odds), decrease the fair odds (make them worse)
-  let fairDecimalOdds;
-  if (dkOdds < 0) {
-    fairDecimalOdds = decimalOdds * (1 + adjustment);
-  } else {
-    fairDecimalOdds = decimalOdds * (1 - adjustment);
-  }
-
-  // Convert back to American odds
-  return dkOdds < 0
-    ? Math.round(-100 / (fairDecimalOdds - 1))
-    : Math.round((fairDecimalOdds - 1) * 100);
 }
 
 // Helper function to format market names

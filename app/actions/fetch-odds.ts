@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { fetchOddsFromApi, transformOddsData } from "@/lib/api/odds-api";
 import { getServerClient } from "@/lib/supabase";
 import { BetSchema } from "@/types/zod";
+import { getPSTDateString, getPSTTomorrowDateString } from "@/lib/utils";
 
 export async function fetchOdds() {
   try {
@@ -53,159 +54,175 @@ export async function fetchOdds() {
 
     let totalBets = 0;
     const results = [];
+    const notifications: string[] = [];
 
-    // Fetch odds for each sport
-    for (const sport of sportsToFetch) {
-      try {
-        console.log(`Fetching odds for ${sport.name}...`);
+    // Helper to pause for ms
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-        // Determine market types based on sport properties
-        let marketQueryParam = "h2h,spreads,totals"; // Default for most sports
-        // Assuming 'sport' now has a 'has_outrights' boolean property
-        // or we infer from the key.
-        const isOutrightSport =
-          sport.has_outrights ||
-          sport.key.includes("_winner") ||
-          sport.key.includes("futures") ||
-          sport.key.startsWith("politics_");
+    // Remove all bets that are not for today or are in the future (PST)
+    const todayStr = getPSTDateString();
+    const tomorrowStr = getPSTTomorrowDateString();
+    await supabase
+      .from("bets")
+      .delete()
+      .or(`not(event_time.like.${todayStr}%),event_time.gte.${tomorrowStr}`);
 
-        if (isOutrightSport) {
-          marketQueryParam = "outrights"; // Use 'outrights' for sports like election winner, tournament winner
-        }
+    // Fetch odds for all sports in parallel
+    const fetchResults = await Promise.all(
+      sportsToFetch.map(async (sport) => {
+        try {
+          console.log(`Fetching odds for ${sport.name}...`);
 
-        // Fetch odds directly from the API with dynamic markets
-        const oddsData = await fetchOddsFromApi(sport.key, marketQueryParam);
-
-        if (!oddsData || oddsData.length === 0) {
-          console.error(`Failed to fetch odds for ${sport.name}:`, oddsData);
-          results.push({
-            sport: sport.name,
-            success: false,
-            message: "Failed to fetch odds from API",
-          });
-          continue;
-        }
-
-        // Transform the data
-        const rawBets = transformOddsData(oddsData);
-        console.log(
-          `Found ${rawBets.length} raw betting opportunities for ${sport.name}`
-        );
-
-        // De-duplicate bets before upserting
-        const uniqueBetsMap = new Map();
-        rawBets.forEach((bet) => {
-          const key = `${bet.match}-${bet.market}-${bet.selection}`;
-          if (!uniqueBetsMap.has(key)) {
-            uniqueBetsMap.set(key, bet);
-          } else {
-            // Optionally, log that a duplicate was found and skipped from the batch
-            console.log(
-              `Duplicate bet in batch skipped for key: ${key}, sport: ${sport.name}`
-            );
+          let marketQueryParam = "h2h,spreads,totals";
+          const isOutrightSport =
+            sport.has_outrights ||
+            sport.key.includes("_winner") ||
+            sport.key.includes("futures") ||
+            sport.key.startsWith("politics_");
+          if (isOutrightSport) {
+            marketQueryParam = "outrights";
           }
-        });
-        const bets = Array.from(uniqueBetsMap.values()); // 'bets' is now the de-duplicated array
-        console.log(
-          `Found ${bets.length} unique betting opportunities for ${sport.name} after de-duplication`
-        );
 
-        if (bets.length === 0) {
-          results.push({
+          // Retry logic for 429
+          let attempt = 0;
+          let oddsData, quotaRemaining, status;
+          while (attempt < 3) {
+            const apiResult = await fetchOddsFromApi(sport.key, marketQueryParam, true); // pass returnHeaders=true
+            oddsData = apiResult.data;
+            quotaRemaining = apiResult.quotaRemaining;
+            status = apiResult.status;
+            if (status !== 429) break;
+            console.warn(`Rate limited by Odds API for ${sport.name}, retrying in 3s...`);
+            await sleep(3000);
+            attempt++;
+          }
+
+          if (quotaRemaining !== undefined && Number(quotaRemaining) < 10) {
+            const msg = `Warning: Only ${quotaRemaining} Odds API requests remaining after fetching ${sport.name}!`;
+            console.warn(msg);
+            notifications.push(msg);
+          }
+
+          if (!oddsData || oddsData.length === 0) {
+            const msg = `Failed to fetch odds for ${sport.name}.`;
+            console.error(msg, oddsData);
+            notifications.push(msg);
+            return {
+              sport: sport.name,
+              success: false,
+              message: "Failed to fetch odds from API",
+            };
+          }
+
+          // Filter oddsData to only include events for today
+          const today = new Date();
+          const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+          const todaysOddsData = oddsData.filter(
+            (event: any) => event.commence_time.slice(0, 10) === todayStr
+          );
+
+          const rawBets = transformOddsData(todaysOddsData);
+          const uniqueBetsMap = new Map();
+          rawBets.forEach((bet) => {
+            const key = `${bet.match}-${bet.market}-${bet.selection}`;
+            if (!uniqueBetsMap.has(key)) {
+              uniqueBetsMap.set(key, bet);
+            }
+          });
+          const bets = Array.from(uniqueBetsMap.values());
+          if (bets.length === 0) {
+            return {
+              sport: sport.name,
+              success: true,
+              count: 0,
+              message: "No unique betting opportunities found after de-duplication",
+            };
+          }
+
+          // Store in Supabase
+          const { data, error } = await supabase
+            .from("bets")
+            .upsert(
+              bets.map((bet) => {
+                const validatedBet = BetSchema.safeParse(bet);
+                if (!validatedBet.success) {
+                  console.error("Error validating bet:", validatedBet.error);
+                  throw new Error("Error validating bet");
+                }
+                return {
+                  sport: validatedBet.data.sport,
+                  match: validatedBet.data.match,
+                  market: validatedBet.data.market,
+                  selection: validatedBet.data.selection,
+                  odds: validatedBet.data.odds,
+                  book_odds: validatedBet.data.book_odds,
+                  edge_percentage: validatedBet.data.edge_percentage,
+                  expected_value: validatedBet.data.expected_value,
+                  event_time: validatedBet.data.event_time,
+                  confidence: validatedBet.data.confidence,
+                  status: validatedBet.data.status,
+                  updated_at: new Date().toISOString(),
+                };
+              }),
+              { onConflict: "match,market,selection" }
+            )
+            .select();
+
+          if (error) {
+            const msg = `Failed to store bets in database for ${sport.name}: ${error.message}`;
+            notifications.push(msg);
+            return {
+              sport: sport.name,
+              success: false,
+              message: `Failed to store bets in database: ${error.message}`,
+            };
+          }
+
+          // For each bet, add an entry to odds_history
+          const oddsHistoryEntries =
+            data?.map((betEntry) => ({
+              bet_id: betEntry.id,
+              odds: betEntry.odds,
+              recorded_at: new Date().toISOString(),
+            })) || [];
+
+          if (oddsHistoryEntries.length > 0) {
+            const { error: historyError } = await supabase
+              .from("odds_history")
+              .insert(oddsHistoryEntries);
+            if (historyError) {
+              console.error(
+                `Error storing odds history for ${sport.name}:`,
+                historyError
+              );
+            }
+          }
+
+          totalBets += bets.length;
+          return {
             sport: sport.name,
             success: true,
-            count: 0,
-            message:
-              "No unique betting opportunities found after de-duplication",
-          });
-          continue;
-        }
-
-        // Store in Supabase
-        const { data, error } = await supabase
-          .from("bets")
-          .upsert(
-            bets.map((bet) => {
-              // Validate each bet before upserting
-              const validatedBet = BetSchema.safeParse(bet);
-              if (!validatedBet.success) {
-                console.error("Error validating bet:", validatedBet.error);
-                throw new Error("Error validating bet"); // Stop processing if any bet is invalid
-              }
-              return {
-                sport: validatedBet.data.sport,
-                match: validatedBet.data.match,
-                market: validatedBet.data.market,
-                selection: validatedBet.data.selection,
-                odds: validatedBet.data.odds,
-                book_odds: validatedBet.data.book_odds,
-                edge_percentage: validatedBet.data.edge_percentage,
-                expected_value: validatedBet.data.expected_value,
-                event_time: validatedBet.data.event_time,
-                confidence: validatedBet.data.confidence,
-                status: validatedBet.data.status,
-                updated_at: new Date().toISOString(),
-              };
-            }),
-            { onConflict: "match,market,selection" }
-          )
-          .select();
-
-        if (error) {
-          console.error(`Error storing bets for ${sport.name}:`, error);
-          results.push({
+            count: bets.length,
+          };
+        } catch (error) {
+          console.error(`Error processing ${sport.name}:`, error);
+          return {
             sport: sport.name,
             success: false,
-            message: `Failed to store bets in database: ${error.message}`,
-          });
-          continue;
+            message: "Error processing sport",
+            error: error instanceof Error ? error.message : String(error),
+          };
         }
+      })
+    );
 
-        // For each bet, add an entry to odds_history
-        const oddsHistoryEntries =
-          data?.map((betEntry) => ({
-            bet_id: betEntry.id,
-            odds: betEntry.odds,
-            recorded_at: new Date().toISOString(),
-          })) || [];
-
-        if (oddsHistoryEntries.length > 0) {
-          const { error: historyError } = await supabase
-            .from("odds_history")
-            .insert(oddsHistoryEntries);
-
-          if (historyError) {
-            console.error(
-              `Error storing odds history for ${sport.name}:`,
-              historyError
-            );
-          }
-        }
-
-        totalBets += bets.length;
-        results.push({
-          sport: sport.name,
-          success: true,
-          count: bets.length,
-        });
-      } catch (error) {
-        console.error(`Error processing ${sport.name}:`, error);
-        results.push({
-          sport: sport.name,
-          success: false,
-          message: "Error processing sport",
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    // Revalidate the dashboard page to show updated data
+    results.push(...fetchResults);
     revalidatePath("/");
-
     return {
       success: true,
       message: `Successfully fetched and stored ${totalBets} betting opportunities`,
       results,
+      notifications,
     };
   } catch (error) {
     console.error("Error fetching odds:", error);

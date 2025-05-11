@@ -1,5 +1,6 @@
 import { getServerClient } from "@/lib/supabase";
 import { NextResponse, NextRequest } from "next/server";
+import { getPSTDateString, getPSTTomorrowDateString } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   const supabase = getServerClient();
@@ -18,13 +19,35 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("sortDirection") || "desc";
 
   try {
+    // Only fetch bets for today (PST)
+    const todayStr = getPSTDateString();
+    const tomorrowStr = getPSTTomorrowDateString();
+
+    // Get the total count for today (PST), without pagination
+    const { count: totalCount, error: countError } = await supabase
+      .from("bets")
+      .select("*", { count: "exact", head: true })
+      .gte('event_time', todayStr)
+      .lt('event_time', tomorrowStr);
+
+    if (countError) {
+      console.error("Error fetching bets count from server:", countError);
+      return NextResponse.json(
+        { error: JSON.stringify(countError) },
+        { status: 500 }
+      );
+    }
+
+    // Fetch paginated data
     let query = supabase
       .from("bets")
-      .select("*", { count: "exact" })
+      .select("*")
       .order(sortColumn, { ascending: sortDirection === "asc" })
-      .range(startIndex, endIndex);
+      .range(startIndex, endIndex)
+      .gte('event_time', todayStr)
+      .lt('event_time', tomorrowStr);
 
-    const { data, error, count } = await query;
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching bets from server:", error);
@@ -38,7 +61,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ data, count });
+    return NextResponse.json({ data, count: totalCount });
   } catch (error: any) {
     console.error("Error fetching bets from server:", error);
     console.error(
