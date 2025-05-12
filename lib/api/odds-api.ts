@@ -11,6 +11,8 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
+const ENABLE_MULTI_BOOKMAKER = false;
+
 // Function to fetch odds from The Odds API
 export async function fetchOddsFromApi(
   sportKey: string,
@@ -24,7 +26,11 @@ export async function fetchOddsFromApi(
     throw new Error("ODDS_API_KEY environment variable is not set");
   }
 
-  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us&markets=${marketTypes}&oddsFormat=american&bookmakers=draftkings`;
+  const bookmakers = ENABLE_MULTI_BOOKMAKER
+    ? "draftkings,fanduel,betmgm,pointsbet"
+    : "draftkings";
+
+  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us&markets=${marketTypes}&oddsFormat=american&bookmakers=${bookmakers}`;
 
   try {
     console.log(`Fetching odds from: ${url.replace(apiKey, "API_KEY_HIDDEN")}`);
@@ -42,7 +48,11 @@ export async function fetchOddsFromApi(
         `API request failed with status ${response.status}: ${errorText}`
       );
       if (returnHeaders) {
-        return { data: [], quotaRemaining: response.headers.get("x-requests-remaining"), status: response.status };
+        return {
+          data: [],
+          quotaRemaining: response.headers.get("x-requests-remaining"),
+          status: response.status,
+        };
       }
       throw new Error(
         `API request failed with status ${response.status}: ${errorText}`
@@ -57,7 +67,11 @@ export async function fetchOddsFromApi(
     if (!validatedData.success) {
       console.error("Error validating Odds API response:", validatedData.error);
       if (returnHeaders) {
-        return { data: [], quotaRemaining: response.headers.get("x-requests-remaining"), status: response.status };
+        return {
+          data: [],
+          quotaRemaining: response.headers.get("x-requests-remaining"),
+          status: response.status,
+        };
       }
       return [];
     }
@@ -80,18 +94,34 @@ export async function fetchOddsFromApi(
 }
 
 // Improved confidence scoring function
-function getConfidence(edge: number, marketType: string, timeToEventMs: number): "low" | "medium" | "high" {
+function getConfidence(
+  edge: number,
+  marketType: string,
+  timeToEventMs: number,
+  dkOdds: number
+): "low" | "medium" | "high" {
   let score = 0;
-  if (edge > 7) score += 2;
-  else if (edge > 4) score += 1;
 
+  // 1. Granular Edge Scoring
+  if (edge > 10) score += 3;
+  else if (edge > 7) score += 2;
+  else if (edge > 4) score += 1;
+  else if (edge > 2) score += 0.5;
+
+  // 2. Odds Level Modifier
+  if (dkOdds >= -150 && dkOdds <= 150) score += 0.5;
+  else if (dkOdds > 300 || dkOdds < -300) score -= 0.5;
+
+  // 3. Market Type Score (No Change)
   if (["Spread", "Moneyline", "Total"].includes(marketType)) score += 1;
 
+  // 4. Time to Event Score (No Change)
   if (timeToEventMs < 2 * 60 * 60 * 1000) score += 1; // <2 hours
   else if (timeToEventMs < 6 * 60 * 60 * 1000) score += 0.5; // 2-6 hours
 
-  if (score >= 4) return "high";
-  if (score >= 2) return "medium";
+  // New Thresholds
+  if (score >= 4.0) return "high";
+  if (score >= 2.0) return "medium";
   return "low";
 }
 
@@ -103,8 +133,10 @@ export function transformOddsData(
   const bets = [];
 
   for (const event of apiData) {
-    // Find DraftKings bookmaker
-    const dkBookmaker = event.bookmakers.find((b) => b.key === "draftkings");
+    // Find DraftKings bookmaker (or first available if multi-bookmaker is enabled)
+    const dkBookmaker = ENABLE_MULTI_BOOKMAKER
+      ? event.bookmakers[0]
+      : event.bookmakers.find((b) => b.key === "draftkings");
 
     if (!dkBookmaker) continue;
 
@@ -123,10 +155,10 @@ export function transformOddsData(
         if (p === 0) return 0;
         if (p > 0.5) {
           // favorite
-          return Math.round(-100 * p / (1 - p));
+          return Math.round((-100 * p) / (1 - p));
         } else {
           // underdog
-          return Math.round(100 * (1 - p) / p);
+          return Math.round((100 * (1 - p)) / p);
         }
       });
 
@@ -150,9 +182,15 @@ export function transformOddsData(
           }
 
           // Calculate time to event in ms
-          const timeToEventMs = new Date(event.commence_time).getTime() - Date.now();
-          // Use improved confidence logic
-          const confidence = getConfidence(edge, formatMarketName(market.key), timeToEventMs);
+          const timeToEventMs =
+            new Date(event.commence_time).getTime() - Date.now();
+          // Use improved confidence logic, passing dkOdds (outcome.price)
+          const confidence = getConfidence(
+            edge,
+            formatMarketName(market.key),
+            timeToEventMs,
+            outcome.price
+          );
 
           bets.push({
             id: uuidv4(),

@@ -36,6 +36,8 @@ export function BetDetails({ bet }: BetDetailsProps) {
     }
   }
 
+  const HIGH_VALUE_THRESHOLD = 5; // Edge percentage greater than this is considered high value
+
   return (
     <Card>
       <CardHeader>
@@ -102,7 +104,12 @@ export function BetDetails({ bet }: BetDetailsProps) {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <span className="font-medium text-green-600">{bet.edge_percentage}%</span>
+            <div className="flex items-center space-x-2">
+              <span className="font-medium text-green-600">{bet.edge_percentage}%</span>
+              {bet.edge_percentage > HIGH_VALUE_THRESHOLD && (
+                <Badge variant="destructive" className="bg-orange-500 hover:bg-orange-600 text-white">High Value 🔥</Badge>
+              )}
+            </div>
           </div>
           <Separator />
           <div className="flex justify-between items-center">

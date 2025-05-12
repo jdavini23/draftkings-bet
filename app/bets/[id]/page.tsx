@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { BetDetails } from "@/components/bet-details"
 import { OddsHistory } from "@/components/odds-history"
 import { BetActions } from "@/components/bet-actions"
+import { EventSummaryCard } from "@/components/event-summary-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -11,6 +12,32 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import type { NewsArticle } from "@/app/api/fetch-news/route"
+import { formatDisplayDateTime } from "@/lib/utils";
+
+interface FetchNewsParams {
+  sport: string;
+  match: string;
+  selection?: string;
+}
+
+async function fetchNews(params: FetchNewsParams): Promise<NewsArticle[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.append('match', params.match); // 'match' is a good primary identifier
+  if (params.sport) {
+    queryParams.append('sport', params.sport);
+  }
+  if (params.selection) {
+    queryParams.append('selection', params.selection);
+  }
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/fetch-news?${queryParams.toString()}`)
+  if (!res.ok) {
+    console.error("Failed to fetch news:", res.statusText);
+    return []; // Return empty array on error
+  }
+  return res.json();
+}
 
 export default async function BetPage({ params }: { params: { id: string } }) {
   const supabase = getServerClient()
@@ -31,6 +58,13 @@ export default async function BetPage({ params }: { params: { id: string } }) {
     .eq("bet_id", id)
     .order("recorded_at", { ascending: true })
 
+  // Fetch related news
+  const relatedNews = await fetchNews({ 
+    sport: bet.sport, 
+    match: bet.match, 
+    selection: bet.selection 
+  });
+
   return (
     <DashboardShell>
       <div className="flex items-center gap-2 mb-4">
@@ -47,47 +81,7 @@ export default async function BetPage({ params }: { params: { id: string } }) {
       <div className="grid gap-6 md:grid-cols-3">
         <BetDetails bet={bet} />
         <BetActions bet={bet} />
-        <Card>
-          <CardHeader>
-            <CardTitle>Event Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Sport:</span>
-                <span className="font-medium">{bet.sport}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Match:</span>
-                <span className="font-medium">{bet.match}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Date & Time:</span>
-                <span className="font-medium">{new Date(bet.event_time).toLocaleString()}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status:</span>
-                <span className="font-medium capitalize">{bet.status}</span>
-              </div>
-              {bet.result && (
-                <>
-                  <Separator />
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Result:</span>
-                    <span
-                      className={`font-medium capitalize ${bet.result === "win" ? "text-green-600" : bet.result === "loss" ? "text-red-600" : ""}`}
-                    >
-                      {bet.result}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <EventSummaryCard bet={bet} />
       </div>
 
       <Tabs defaultValue="odds-history" className="mt-6">
@@ -102,35 +96,34 @@ export default async function BetPage({ params }: { params: { id: string } }) {
           <Card>
             <CardHeader>
               <CardTitle>Related News</CardTitle>
-              <CardDescription>Latest news and analysis related to this bet</CardDescription>
+              <CardDescription>Latest news and analysis related to this event</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium">Injury Report: Key Player Questionable</h3>
-                  <p className="text-muted-foreground text-sm mt-1">ESPN • 2 hours ago</p>
-                  <p className="mt-2">
-                    The team's star player is listed as questionable for tonight's game due to a minor ankle sprain
-                    suffered during practice.
-                  </p>
+              {relatedNews && relatedNews.length > 0 ? (
+                <div className="space-y-4">
+                  {relatedNews.map((article) => (
+                    <div key={article.id} className="border rounded-lg p-4">
+                      <h3 className="text-lg font-medium">
+                        {article.url ? (
+                          <a href={article.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                            {article.title}
+                          </a>
+                        ) : (
+                          article.title
+                        )}
+                      </h3>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        {article.source} • {formatDisplayDateTime(article.published_at)}
+                      </p>
+                      <p className="mt-2 text-sm">
+                        {article.snippet}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium">Betting Trends: Home Team Covering Consistently</h3>
-                  <p className="text-muted-foreground text-sm mt-1">The Athletic • 5 hours ago</p>
-                  <p className="mt-2">
-                    The home team has covered the spread in 7 of their last 8 games, making them a strong play against
-                    the spread.
-                  </p>
-                </div>
-                <div className="border rounded-lg p-4">
-                  <h3 className="text-lg font-medium">Weather Forecast: Potential Impact on Game</h3>
-                  <p className="text-muted-foreground text-sm mt-1">Weather.com • 1 day ago</p>
-                  <p className="mt-2">
-                    Weather conditions could impact the game, with forecasts showing potential for rain and wind that
-                    might affect scoring.
-                  </p>
-                </div>
-              </div>
+              ) : (
+                <p>No news found for this event.</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

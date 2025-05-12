@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts"
+import { formatDisplayDateTime } from "@/lib/utils";
 
 interface OddsHistoryProps {
   oddsHistory: {
@@ -26,8 +27,8 @@ export function OddsHistory({ oddsHistory }: OddsHistoryProps) {
       }
 
       return {
-        time: new Date(item.recorded_at || "").toLocaleTimeString(),
-        date: new Date(item.recorded_at || "").toLocaleDateString(),
+        displayDateTime: item.recorded_at ? formatDisplayDateTime(item.recorded_at) : "N/A",
+        shortTime: item.recorded_at ? new Date(item.recorded_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }) : "N/A",
         americanOdds: odds,
         decimalOdds: Number.parseFloat(decimalOdds.toFixed(2)),
       }
@@ -56,7 +57,7 @@ export function OddsHistory({ oddsHistory }: OddsHistoryProps) {
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
+                <XAxis dataKey="shortTime" />
                 <YAxis />
                 <Tooltip
                   formatter={(value, name) => {
@@ -65,9 +66,11 @@ export function OddsHistory({ oddsHistory }: OddsHistoryProps) {
                     }
                     return [value, name]
                   }}
-                  labelFormatter={(time) => {
-                    const entry = data.find((d) => d.time === time)
-                    return `${entry?.date} ${entry?.time}`
+                  labelFormatter={(label, payload) => {
+                    if (payload && payload.length > 0 && payload[0].payload.displayDateTime) {
+                      return payload[0].payload.displayDateTime;
+                    }
+                    return label; // Fallback to the shortTime if displayDateTime isn't available
                   }}
                 />
                 <Legend />
@@ -83,26 +86,30 @@ export function OddsHistory({ oddsHistory }: OddsHistoryProps) {
 
         <div className="mt-6">
           <h3 className="font-medium mb-2">Odds Movement</h3>
-          <div className="space-y-2">
-            {data.map((item, index) => (
-              <div key={index} className="flex justify-between text-sm">
-                <span>
-                  {item.date} {item.time}
-                </span>
-                <span
-                  className={
-                    index > 0 && item.americanOdds !== data[index - 1].americanOdds
-                      ? item.americanOdds > data[index - 1].americanOdds
-                        ? "text-green-600"
-                        : "text-red-600"
-                      : ""
-                  }
-                >
-                  {item.americanOdds}
-                </span>
-              </div>
-            ))}
-          </div>
+          {data.length > 0 ? (
+            <div className="space-y-2">
+              {data.map((item, index) => (
+                <div key={index} className="flex justify-between text-sm">
+                  <span>
+                    {item.displayDateTime}
+                  </span>
+                  <span
+                    className={
+                      index > 0 && item.americanOdds !== data[index - 1].americanOdds
+                        ? parseFloat(item.americanOdds) > parseFloat(data[index - 1].americanOdds)
+                          ? "text-green-600"
+                          : "text-red-600"
+                        : ""
+                    }
+                  >
+                    {item.americanOdds}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">No specific odds changes recorded.</p>
+          )}
         </div>
       </CardContent>
     </Card>

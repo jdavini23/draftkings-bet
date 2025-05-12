@@ -17,3 +17,19 @@ export function getPSTTomorrowDateString(date = new Date()): string {
   pst.setDate(pst.getDate() + 1);
   return pst.toISOString().slice(0, 10);
 }
+
+// Formats a date string or Date object for display
+// e.g., "May 11, 2025, 7:00 PM"
+export function formatDisplayDateTime(dateInput: string | Date): string {
+  const date = new Date(dateInput);
+  // Using en-US for a common, readable format. 
+  // Consider if a specific timezone is needed for display, otherwise it uses user's local.
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+}

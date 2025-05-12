@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { BookmarkIcon, Share2Icon, AlertTriangleIcon, ExternalLinkIcon } from "lucide-react"
+import { BookmarkIcon, BookmarkCheckIcon, Share2Icon, ExternalLinkIcon, BellIcon, CheckIcon } from "lucide-react"
 import { getBrowserClient } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface BetActionsProps {
   bet: {
@@ -96,6 +97,29 @@ export function BetActions({ bet }: BetActionsProps) {
     }
   }
 
+  const eventTime = new Date(bet.event_time);
+  const isEventOver = eventTime < new Date();
+  const settledStatuses = ['win', 'loss', 'push', 'cancelled', 'settled']; 
+  const isBetSettled = settledStatuses.includes(bet.status.toLowerCase());
+  const canPlaceBet = !isEventOver && !isBetSettled;
+  const canTrackBet = !isEventOver && !isBetSettled;
+
+  let disabledReason = "";
+  if (isEventOver) disabledReason = "Event has already started.";
+  else if (isBetSettled) disabledReason = `Bet is already ${bet.status.toLowerCase()}.`;
+
+  let trackDisabledReason = "";
+  if (!canTrackBet) {
+    if (isEventOver) trackDisabledReason = "Cannot track an event that has started.";
+    else if (isBetSettled) trackDisabledReason = `Cannot track a bet that is already ${bet.status.toLowerCase()}.`;
+  }
+
+  let saveDisabledReason = "";
+  if (!canTrackBet) { 
+    if (isEventOver) saveDisabledReason = "Cannot save an event that has started.";
+    else if (isBetSettled) saveDisabledReason = `Cannot save a bet that is already ${bet.status.toLowerCase()}.`;
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -135,19 +159,73 @@ export function BetActions({ bet }: BetActionsProps) {
         </div>
       </CardContent>
       <CardFooter className="flex flex-col gap-2">
-        <Button className="w-full" onClick={() => window.open("https://sportsbook.draftkings.com", "_blank")}>
-          <ExternalLinkIcon className="mr-2 h-4 w-4" />
-          Place Bet on DraftKings
-        </Button>
+        <TooltipProvider>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <div className="w-full">
+                <Button 
+                  className="w-full" 
+                  onClick={() => window.open("https://sportsbook.draftkings.com", "_blank")} 
+                  disabled={!canPlaceBet}
+                >
+                  <ExternalLinkIcon className="mr-2 h-4 w-4" />
+                  Place Bet on DraftKings
+                </Button>
+              </div>
+            </TooltipTrigger>
+            {!canPlaceBet && (
+              <TooltipContent>
+                <p>{disabledReason}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+
         <div className="grid grid-cols-3 gap-2 w-full">
-          <Button variant="outline" onClick={handleSaveBet}>
-            <BookmarkIcon className="mr-2 h-4 w-4" />
-            {isSaved ? "Unsave" : "Save"}
-          </Button>
-          <Button variant="outline" onClick={handleTrackBet}>
-            <AlertTriangleIcon className="mr-2 h-4 w-4" />
-            {isTracking ? "Untrack" : "Track"}
-          </Button>
+          <TooltipProvider>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <div className="w-full">
+                  <Button variant="outline" onClick={handleSaveBet} disabled={!canTrackBet} className="w-full">
+                    {isSaved ? (
+                      <BookmarkCheckIcon className="mr-2 h-4 w-4 text-blue-500" />
+                    ) : (
+                      <BookmarkIcon className="mr-2 h-4 w-4" />
+                    )}
+                    {isSaved ? "Saved" : "Save"} 
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              {!canTrackBet && (
+                <TooltipContent>
+                  <p>{saveDisabledReason}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <div className="w-full">
+                  <Button variant="outline" onClick={handleTrackBet} disabled={!canTrackBet} className="w-full">
+                    {isTracking ? (
+                      <CheckIcon className="mr-2 h-4 w-4 text-green-500" />
+                    ) : (
+                      <BellIcon className="mr-2 h-4 w-4" />
+                    )}
+                    {isTracking ? "Tracking" : "Track"} 
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              {!canTrackBet && (
+                <TooltipContent>
+                  <p>{trackDisabledReason}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+
           <Button variant="outline" onClick={handleShareBet}>
             <Share2Icon className="mr-2 h-4 w-4" />
             Share
