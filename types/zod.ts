@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const OddsApiOutcomeSchema = z.object({
   name: z.string(),
@@ -55,6 +55,7 @@ export const BetSchema = z.object({
   confidence: z.string(),
   status: z.string(),
   result: z.string().nullable(),
+  stake: z.number(),
 });
 
 export type Bet = z.infer<typeof BetSchema>;

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { ReactElement } from 'react'; 
+import React, { ReactElement, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -29,7 +29,7 @@ import {
   BookmarkIcon,
   ExternalLinkIcon,
   InfoIcon,
-  ChevronDown, 
+  ChevronDown,
 } from 'lucide-react';
 import { Bet } from '@/types';
 import { ConfidenceBadge, ConfidenceLevel } from './ConfidenceBadge';
@@ -45,7 +45,7 @@ interface OpportunitiesTableProps {
     confidence: boolean;
     actions: boolean;
   };
-  sortColumn: keyof Bet | null; 
+  sortColumn: keyof Bet | null;
   sortDirection: 'asc' | 'desc';
   handleSort: (column: keyof Bet) => void;
   getSortIcon: (column: keyof Bet) => React.ReactNode;
@@ -70,7 +70,12 @@ export function OpportunitiesTable({
   handleSelectRow,
   handleSelectAll,
 }: OpportunitiesTableProps) {
-  const router = useRouter(); 
+  const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   if (loading) {
     return (
@@ -78,7 +83,9 @@ export function OpportunitiesTable({
         <Table>
           <TableHeader>
             <TableRow className="sticky top-0 bg-white z-10">
-              <TableHead className="w-8"><input type="checkbox" disabled /></TableHead>
+              <TableHead className="w-8">
+                <input type="checkbox" disabled />
+              </TableHead>
               <TableHead>Sport</TableHead>
               <TableHead>Match</TableHead>
               <TableHead>Market/Selection</TableHead>
@@ -87,7 +94,10 @@ export function OpportunitiesTable({
               {visibleColumns.expected_value && <TableHead>EV</TableHead>}
               {visibleColumns.event_time && <TableHead>Time</TableHead>}
               {visibleColumns.confidence && (
-                <TableHead onClick={() => handleSort('confidence')} className="cursor-pointer">
+                <TableHead
+                  onClick={() => handleSort('confidence')}
+                  className="cursor-pointer"
+                >
                   <div className="flex items-center">
                     Confidence {getSortIcon('confidence')}
                   </div>
@@ -99,7 +109,11 @@ export function OpportunitiesTable({
           <TableBody>
             {[...Array(5)].map((_, idx) => (
               <TableRow key={idx}>
-                {[...Array(Object.values(visibleColumns).filter(Boolean).length + 4)].map((_, cellIdx) => ( 
+                {[
+                  ...Array(
+                    Object.values(visibleColumns).filter(Boolean).length + 4
+                  ),
+                ].map((_, cellIdx) => (
                   <TableCell key={cellIdx}>
                     <div className="h-4 bg-gray-200 rounded animate-pulse w-full" />
                   </TableCell>
@@ -118,22 +132,30 @@ export function OpportunitiesTable({
         <TableHeader>
           <TableRow className="sticky top-0 bg-gray-50 z-10 rounded-t-lg">
             <TableHead className="w-8">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={handleSelectAll}
-                aria-label="Select all visible opportunities"
-              />
+              {
+                isMounted ? (
+                  <input
+                    type="checkbox"
+                    checked={!!allSelected}
+                    onChange={handleSelectAll}
+                    aria-label="Select all visible opportunities"
+                  />
+                ) : null /* Render nothing on server/initial client render */
+              }
             </TableHead>
             <TableHead
               onClick={() => handleSort('sport')}
-              className={`cursor-pointer ${sortColumn === 'sport' ? 'font-bold bg-gray-100' : ''}`}
+              className={`cursor-pointer ${
+                sortColumn === 'sport' ? 'font-bold bg-gray-100' : ''
+              }`}
             >
               Sport {getSortIcon('sport')}
             </TableHead>
             <TableHead
               onClick={() => handleSort('match')}
-              className={`cursor-pointer ${sortColumn === 'match' ? 'font-bold bg-gray-100' : ''}`}
+              className={`cursor-pointer ${
+                sortColumn === 'match' ? 'font-bold bg-gray-100' : ''
+              }`}
             >
               Match {getSortIcon('match')}
             </TableHead>
@@ -141,7 +163,9 @@ export function OpportunitiesTable({
             {visibleColumns.odds && (
               <TableHead
                 onClick={() => handleSort('book_odds')}
-                className={`cursor-pointer ${sortColumn === 'book_odds' ? 'font-bold bg-gray-100' : ''}`}
+                className={`cursor-pointer ${
+                  sortColumn === 'book_odds' ? 'font-bold bg-gray-100' : ''
+                }`}
               >
                 DK Odds {getSortIcon('book_odds')}
               </TableHead>
@@ -149,7 +173,11 @@ export function OpportunitiesTable({
             {visibleColumns.edge_percentage && (
               <TableHead
                 onClick={() => handleSort('edge_percentage')}
-                className={`cursor-pointer ${sortColumn === 'edge_percentage' ? 'font-bold bg-gray-100' : ''}`}
+                className={`cursor-pointer ${
+                  sortColumn === 'edge_percentage'
+                    ? 'font-bold bg-gray-100'
+                    : ''
+                }`}
               >
                 Edge % {getSortIcon('edge_percentage')}
               </TableHead>
@@ -157,7 +185,9 @@ export function OpportunitiesTable({
             {visibleColumns.expected_value && (
               <TableHead
                 onClick={() => handleSort('expected_value')}
-                className={`cursor-pointer ${sortColumn === 'expected_value' ? 'font-bold bg-gray-100' : ''}`}
+                className={`cursor-pointer ${
+                  sortColumn === 'expected_value' ? 'font-bold bg-gray-100' : ''
+                }`}
               >
                 EV {getSortIcon('expected_value')}
               </TableHead>
@@ -165,13 +195,18 @@ export function OpportunitiesTable({
             {visibleColumns.event_time && (
               <TableHead
                 onClick={() => handleSort('event_time')}
-                className={`cursor-pointer ${sortColumn === 'event_time' ? 'font-bold bg-gray-100' : ''}`}
+                className={`cursor-pointer ${
+                  sortColumn === 'event_time' ? 'font-bold bg-gray-100' : ''
+                }`}
               >
                 Time {getSortIcon('event_time')}
               </TableHead>
             )}
             {visibleColumns.confidence && (
-              <TableHead onClick={() => handleSort('confidence')} className="cursor-pointer">
+              <TableHead
+                onClick={() => handleSort('confidence')}
+                className="cursor-pointer"
+              >
                 <div className="flex items-center">
                   Confidence {getSortIcon('confidence')}
                 </div>
@@ -188,28 +223,40 @@ export function OpportunitiesTable({
                 className="hover:bg-gray-50 cursor-pointer"
               >
                 <TableCell onClick={(e) => e.stopPropagation()} className="w-8">
-                   <input
+                  <input
                     type="checkbox"
                     checked={selectedIds.includes(opportunity.id)}
                     onChange={() => handleSelectRow(opportunity.id)}
                     aria-label={`Select opportunity ${opportunity.id}`}
                   />
                 </TableCell>
-                <TableCell onClick={() => handleRowClick(opportunity.id)}>{opportunity.sport}</TableCell>
-                <TableCell onClick={() => handleRowClick(opportunity.id)}>{opportunity.match}</TableCell>
+                <TableCell onClick={() => handleRowClick(opportunity.id)}>
+                  {opportunity.sport}
+                </TableCell>
+                <TableCell onClick={() => handleRowClick(opportunity.id)}>
+                  {opportunity.match}
+                </TableCell>
                 <TableCell onClick={() => handleRowClick(opportunity.id)}>
                   <div>{opportunity.market}</div>
-                  <div className="text-xs text-gray-500">{opportunity.selection}</div>
+                  <div className="text-xs text-gray-500">
+                    {opportunity.selection}
+                  </div>
                 </TableCell>
                 {visibleColumns.odds && (
                   <TableCell onClick={() => handleRowClick(opportunity.id)}>
-                    <span className="font-semibold">{opportunity.book_odds}</span>
+                    <span className="font-semibold">
+                      {opportunity.book_odds}
+                    </span>
                   </TableCell>
                 )}
                 {visibleColumns.edge_percentage && (
                   <TableCell onClick={() => handleRowClick(opportunity.id)}>
                     <span
-                      className={opportunity.edge_percentage > 0 ? 'text-green-600' : 'text-red-600'}
+                      className={
+                        opportunity.edge_percentage > 0
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }
                     >
                       {opportunity.edge_percentage.toFixed(2)}%
                     </span>
@@ -217,7 +264,7 @@ export function OpportunitiesTable({
                 )}
                 {visibleColumns.expected_value && (
                   <TableCell onClick={() => handleRowClick(opportunity.id)}>
-                     {opportunity.expected_value}
+                    {opportunity.expected_value}
                   </TableCell>
                 )}
                 {visibleColumns.event_time && (
@@ -227,11 +274,13 @@ export function OpportunitiesTable({
                 )}
                 {visibleColumns.confidence && (
                   <TableCell>
-                    <ConfidenceBadge confidence={opportunity.confidence as ConfidenceLevel} />
+                    <ConfidenceBadge
+                      confidence={opportunity.confidence as ConfidenceLevel}
+                    />
                   </TableCell>
                 )}
                 {visibleColumns.actions && (
-                  <TableCell onClick={(e) => e.stopPropagation()}> 
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       <TooltipProvider>
                         <Tooltip>
@@ -239,7 +288,11 @@ export function OpportunitiesTable({
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => router.push(`/bets/${opportunity.id}?tab=details`)}
+                              onClick={() =>
+                                router.push(
+                                  `/bets/${opportunity.id}?tab=details`
+                                )
+                              }
                               aria-label="View details"
                             >
                               <InfoIcon className="h-4 w-4" />
@@ -254,7 +307,9 @@ export function OpportunitiesTable({
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => alert(`Bookmarking ${opportunity.id}`)} 
+                              onClick={() =>
+                                alert(`Bookmarking ${opportunity.id}`)
+                              }
                               aria-label="Save opportunity"
                             >
                               <BookmarkIcon className="h-4 w-4" />
@@ -265,20 +320,38 @@ export function OpportunitiesTable({
                       </TooltipProvider>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" aria-label="More actions">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="More actions"
+                          >
                             <ChevronDown className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`https://sportsbook.draftkings.com`} target="_blank" rel="noopener noreferrer" className="flex items-center w-full">
-                              Open in DraftKings <ExternalLinkIcon className="ml-2 h-3 w-3" />
+                            <Link
+                              href={`https://sportsbook.draftkings.com`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center w-full"
+                            >
+                              Open in DraftKings{' '}
+                              <ExternalLinkIcon className="ml-2 h-3 w-3" />
                             </Link>
                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => router.push(`/bets/${opportunity.id}?tab=similar`)}>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              router.push(`/bets/${opportunity.id}?tab=similar`)
+                            }
+                          >
                             Find Similar Bets
                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => alert('Hide this opportunity (stub)')}>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              alert('Hide this opportunity (stub)')
+                            }
+                          >
                             Hide Opportunity
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -290,7 +363,12 @@ export function OpportunitiesTable({
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={Object.values(visibleColumns).filter(Boolean).length + 4} className="text-center">
+              <TableCell
+                colSpan={
+                  Object.values(visibleColumns).filter(Boolean).length + 4
+                }
+                className="text-center"
+              >
                 No opportunities found.
               </TableCell>
             </TableRow>

@@ -1,20 +1,23 @@
-import type { Metadata } from 'next'
-import './globals.css'
+import type { Metadata } from 'next';
+import './globals.css';
+import { BetRefreshProvider } from '@/hooks/use-bet-refresh';
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'DraftKings Bet',
+  description: 'Smart betting with DraftKings',
   generator: 'v0.dev',
-}
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
     <html lang="en">
-      <body suppressHydrationWarning={true}>{children}</body>
+      <body suppressHydrationWarning={true}>
+        <BetRefreshProvider>{children}</BetRefreshProvider>
+      </body>
     </html>
-  )
+  );
 }

@@ -1,19 +1,25 @@
-import { getServerClient } from "@/lib/supabase"
-import { notFound } from "next/navigation"
-import { BetDetails } from "@/components/bet-details"
-import { OddsHistory } from "@/components/odds-history"
-import { BetActions } from "@/components/bet-actions"
-import { EventSummaryCard } from "@/components/event-summary-card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { DashboardShell } from "@/components/dashboard-shell"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
-import Link from "next/link"
-import type { NewsArticle } from "@/app/api/fetch-news/route"
-import { formatDisplayDateTime } from "@/lib/utils";
+import { getServerClient } from '@/lib/supabase';
+import { notFound } from 'next/navigation';
+import { BetDetails } from '@/components/bet-details';
+import { OddsHistory } from '@/components/odds-history';
+import { BetActions } from '@/components/bet-actions';
+import { EventSummaryCard } from '@/components/event-summary-card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { DashboardHeader } from '@/components/dashboard-header';
+import { DashboardShell } from '@/components/dashboard-shell';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import type { NewsArticle } from '@/app/api/fetch-news/route';
+import { formatDisplayDateTime } from '@/lib/utils';
 
 interface FetchNewsParams {
   sport: string;
@@ -31,38 +37,46 @@ async function fetchNews(params: FetchNewsParams): Promise<NewsArticle[]> {
     queryParams.append('selection', params.selection);
   }
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/fetch-news?${queryParams.toString()}`)
+  const res = await fetch(
+    `${
+      process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    }/api/fetch-news?${queryParams.toString()}`
+  );
   if (!res.ok) {
-    console.error("Failed to fetch news:", res.statusText);
+    console.error('Failed to fetch news:', res.statusText);
     return []; // Return empty array on error
   }
   return res.json();
 }
 
 export default async function BetPage({ params }: { params: { id: string } }) {
-  const supabase = getServerClient()
+  const supabase = getServerClient();
   const { id } = params;
 
   // Fetch bet details
-  const { data: bet, error } = await supabase.from("bets").select("*").eq("id", id).single()
+  const { data: bet, error } = await supabase
+    .from('bets')
+    .select('*')
+    .eq('id', id)
+    .single();
 
   if (error || !bet) {
-    console.error("Error fetching bet:", error)
-    notFound()
+    console.error('Error fetching bet:', error);
+    notFound();
   }
 
   // Fetch odds history
   const { data: oddsHistory } = await supabase
-    .from("odds_history")
-    .select("*")
-    .eq("bet_id", id)
-    .order("recorded_at", { ascending: true })
+    .from('odds_history')
+    .select('*')
+    .eq('bet_id', id)
+    .order('recorded_at', { ascending: true });
 
   // Fetch related news
-  const relatedNews = await fetchNews({ 
-    sport: bet.sport, 
-    match: bet.match, 
-    selection: bet.selection 
+  const relatedNews = await fetchNews({
+    sport: bet.sport,
+    match: bet.match,
+    selection: bet.selection,
   });
 
   return (
@@ -76,7 +90,10 @@ export default async function BetPage({ params }: { params: { id: string } }) {
         </Link>
       </div>
 
-      <DashboardHeader heading={`${bet.match} - ${bet.market}`} text={`${bet.selection} @ ${bet.odds}`} />
+      <DashboardHeader
+        heading={`${bet.match} - ${bet.market}`}
+        text={`${bet.selection} @ ${bet.odds}`}
+      />
 
       <div className="grid gap-6 md:grid-cols-3">
         <BetDetails bet={bet} />
@@ -90,13 +107,15 @@ export default async function BetPage({ params }: { params: { id: string } }) {
           <TabsTrigger value="news">Related News</TabsTrigger>
         </TabsList>
         <TabsContent value="odds-history" className="mt-4">
-          <OddsHistory oddsHistory={oddsHistory || []} />
+          <OddsHistory oddsHistory={oddsHistory || []} betId={id} />
         </TabsContent>
         <TabsContent value="news" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Related News</CardTitle>
-              <CardDescription>Latest news and analysis related to this event</CardDescription>
+              <CardDescription>
+                Latest news and analysis related to this event
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {relatedNews && relatedNews.length > 0 ? (
@@ -105,7 +124,12 @@ export default async function BetPage({ params }: { params: { id: string } }) {
                     <div key={article.id} className="border rounded-lg p-4">
                       <h3 className="text-lg font-medium">
                         {article.url ? (
-                          <a href={article.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                          <a
+                            href={article.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
                             {article.title}
                           </a>
                         ) : (
@@ -113,11 +137,10 @@ export default async function BetPage({ params }: { params: { id: string } }) {
                         )}
                       </h3>
                       <p className="text-muted-foreground text-sm mt-1">
-                        {article.source} • {formatDisplayDateTime(article.published_at)}
+                        {article.source} •{' '}
+                        {formatDisplayDateTime(article.published_at)}
                       </p>
-                      <p className="mt-2 text-sm">
-                        {article.snippet}
-                      </p>
+                      <p className="mt-2 text-sm">{article.snippet}</p>
                     </div>
                   ))}
                 </div>
@@ -129,5 +152,5 @@ export default async function BetPage({ params }: { params: { id: string } }) {
         </TabsContent>
       </Tabs>
     </DashboardShell>
-  )
+  );
 }

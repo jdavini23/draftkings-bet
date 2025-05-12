@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -43,10 +43,16 @@ import { useBetOpportunitiesTable } from './hooks/useBetOpportunitiesTable';
 import { Bet } from '@/types';
 import { OpportunitiesTable } from './OpportunitiesTable';
 import { OpportunitiesPagination } from './OpportunitiesPagination';
-import { OpportunitiesHeaderControls, OpportunitiesTableColumnKey } from './OpportunitiesHeaderControls';
+import {
+  OpportunitiesHeaderControls,
+  OpportunitiesTableColumnKey,
+} from './OpportunitiesHeaderControls';
 import { OpportunitiesToolbar } from './OpportunitiesToolbar';
 
-const COLUMN_DEFINITIONS: { key: OpportunitiesTableColumnKey; label: string }[] = [
+const COLUMN_DEFINITIONS: {
+  key: OpportunitiesTableColumnKey;
+  label: string;
+}[] = [
   { key: 'odds', label: 'Odds' },
   { key: 'edge_percentage', label: 'Edge %' },
   { key: 'expected_value', label: 'Expected Value' },
@@ -59,6 +65,12 @@ export function BetOpportunities() {
   const [filter, setFilter] = useState('all');
   const [exportLoading, setExportLoading] = useState(false);
   const router = useRouter();
+
+  // Hydration fix: Only render time on client
+  const [clientTime, setClientTime] = useState<string | null>(null);
+  useEffect(() => {
+    setClientTime(new Date().toLocaleTimeString());
+  }, []);
 
   const {
     opportunities,
@@ -93,7 +105,7 @@ export function BetOpportunities() {
 
   const getSortIcon = (column: keyof Bet) => {
     if (column === sortColumn) {
-      return sortDirection === "asc" ? (
+      return sortDirection === 'asc' ? (
         <ArrowUp className="h-4 w-4 transition-transform duration-200" />
       ) : (
         <ArrowDown className="h-4 w-4 transition-transform duration-200" />
@@ -116,8 +128,12 @@ export function BetOpportunities() {
     }
   };
 
-  const allVisibleIds = filteredOpportunities.slice((page - 1) * pageSize, page * pageSize).map((opp) => opp.id);
-  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.includes(id));
+  const allVisibleIds = filteredOpportunities
+    .slice((page - 1) * pageSize, page * pageSize)
+    .map((opp) => opp.id);
+  const allSelected =
+    allVisibleIds.length > 0 &&
+    allVisibleIds.every((id) => selectedIds.includes(id));
   const someSelected = selectedIds.length > 0;
 
   const handleSelectAll = () => {
@@ -129,7 +145,9 @@ export function BetOpportunities() {
   };
 
   const handleSelectRow = (id: string) => {
-    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   };
 
   const handleBulkExport = () => {
@@ -195,7 +213,8 @@ export function BetOpportunities() {
         />
         <div className="flex justify-between items-center pt-4 border-t border-gray-200">
           <span className="text-sm text-gray-600">
-            {totalCount} opportunities found. Last updated: {new Date().toLocaleTimeString()}.
+            {totalCount} opportunities found. Last updated:{' '}
+            {clientTime ? clientTime : '--'}.
           </span>
           <div className="flex gap-2">
             <Button

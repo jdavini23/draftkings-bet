@@ -12,4 +12,5 @@ export interface Bet {
   confidence: string;
   status: string;
   result: string | null;
+  stake: number;
 }

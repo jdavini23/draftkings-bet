@@ -17,6 +17,8 @@ import { Overview } from '@/components/overview';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { fetchOdds } from '@/app/actions/fetch-odds';
+import { useRouter } from 'next/navigation';
+import { useBetRefresh } from '@/hooks/use-bet-refresh';
 
 export function DashboardClient({
   opportunitiesCount,
@@ -107,6 +109,8 @@ export function DashboardClient({
 function FetchOddsButton() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
+  const { triggerRefresh } = useBetRefresh();
 
   async function handleFetchOdds() {
     setIsLoading(true);
@@ -118,6 +122,8 @@ function FetchOddsButton() {
           title: 'Success!',
           description: result.message,
         });
+        router.refresh();
+        triggerRefresh();
       } else {
         toast({
           title: 'Error fetching odds',
@@ -130,7 +136,11 @@ function FetchOddsButton() {
           toast({
             title: 'Notice',
             description: msg,
-            variant: msg.toLowerCase().includes('fail') || msg.toLowerCase().includes('warning') ? 'destructive' : 'default',
+            variant:
+              msg.toLowerCase().includes('fail') ||
+              msg.toLowerCase().includes('warning')
+                ? 'destructive'
+                : 'default',
           })
         );
       }

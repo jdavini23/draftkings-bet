@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Bet } from '@/types'; 
-import { OpportunitiesTableColumnKey } from '../OpportunitiesHeaderControls'; 
+import { Bet } from '@/types';
+import { OpportunitiesTableColumnKey } from '../OpportunitiesHeaderControls';
+import { useBetRefresh } from '@/hooks/use-bet-refresh';
 
 export interface UseBetOpportunitiesTableProps {
   initialPageSize?: number;
@@ -24,9 +25,12 @@ export function useBetOpportunitiesTable({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(
     initialSortDirection || 'asc'
   );
+  const { refreshTrigger } = useBetRefresh();
 
   // State for column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Record<OpportunitiesTableColumnKey, boolean>>({
+  const [visibleColumns, setVisibleColumns] = useState<
+    Record<OpportunitiesTableColumnKey, boolean>
+  >({
     odds: true,
     edge_percentage: true,
     expected_value: true,
@@ -38,8 +42,10 @@ export function useBetOpportunitiesTable({
   const fetchBets = useCallback(async () => {
     setLoading(true);
     try {
+      // Add cache-busting query parameter
+      const cacheBuster = new Date().getTime();
       const response = await fetch(
-        `/api/get-bets?page=${page}&pageSize=${pageSize}&sortColumn=${sortColumn}&sortDirection=${sortDirection}`
+        `/api/get-bets?page=${page}&pageSize=${pageSize}&sortColumn=${sortColumn}&sortDirection=${sortDirection}&t=${cacheBuster}`
       );
       if (!response.ok) {
         throw new Error(`Failed to fetch bets: ${response.status}`);
@@ -68,7 +74,7 @@ export function useBetOpportunitiesTable({
 
   useEffect(() => {
     fetchBets();
-  }, [fetchBets]);
+  }, [fetchBets, refreshTrigger]); // Add refreshTrigger as a dependency
 
   const handleSort = (column: keyof Bet) => {
     if (column === sortColumn) {
@@ -81,12 +87,15 @@ export function useBetOpportunitiesTable({
   };
 
   // Handler for toggling column visibility
-  const handleToggleColumn = useCallback((columnKey: OpportunitiesTableColumnKey) => {
-    setVisibleColumns((prev) => ({
-      ...prev,
-      [columnKey]: !prev[columnKey],
-    }));
-  }, []);
+  const handleToggleColumn = useCallback(
+    (columnKey: OpportunitiesTableColumnKey) => {
+      setVisibleColumns((prev) => ({
+        ...prev,
+        [columnKey]: !prev[columnKey],
+      }));
+    },
+    []
+  );
 
   const pageCount = Math.ceil(totalCount / pageSize);
 
