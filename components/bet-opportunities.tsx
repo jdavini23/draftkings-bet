@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -8,9 +8,9 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   BookmarkIcon,
   ChevronDown,
@@ -29,48 +29,47 @@ import {
   ArrowUp,
   ChevronsLeft,
   ChevronsRight,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+} from "@/components/ui/tooltip";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { useBetOpportunitiesTable } from './hooks/useBetOpportunitiesTable';
-import { Bet } from '@/types';
-import { OpportunitiesTable } from './OpportunitiesTable';
-import { OpportunitiesPagination } from './OpportunitiesPagination';
+import { useBetOpportunitiesTable } from "./hooks/useBetOpportunitiesTable";
+import { Bet } from "@/types";
+import { OpportunitiesTable } from "./OpportunitiesTable";
+import { OpportunitiesPagination } from "./OpportunitiesPagination";
 import {
   OpportunitiesHeaderControls,
   OpportunitiesTableColumnKey,
-} from './OpportunitiesHeaderControls';
-import { OpportunitiesToolbar } from './OpportunitiesToolbar';
+} from "./OpportunitiesHeaderControls";
+import { OpportunitiesToolbar } from "./OpportunitiesToolbar";
 
 const COLUMN_DEFINITIONS: {
   key: OpportunitiesTableColumnKey;
   label: string;
 }[] = [
-  { key: 'odds', label: 'Odds' },
-  { key: 'edge_percentage', label: 'Edge %' },
-  { key: 'expected_value', label: 'Expected Value' },
-  { key: 'event_time', label: 'Event Time' },
-  { key: 'confidence', label: 'Confidence' },
-  { key: 'actions', label: 'Actions' },
+  { key: "odds", label: "Odds" },
+  { key: "edge_percentage", label: "Edge %" },
+  { key: "expected_value", label: "Expected Value" },
+  { key: "event_time", label: "Event Time" },
+  { key: "confidence", label: "Confidence" },
+  { key: "actions", label: "Actions" },
 ];
 
 export function BetOpportunities() {
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState<"all" | "low" | "medium" | "high">(
+    "all"
+  );
   const [exportLoading, setExportLoading] = useState(false);
   const router = useRouter();
 
   // Hydration fix: Only render time on client
-  const [clientTime, setClientTime] = useState<string | null>(null);
-  useEffect(() => {
-    setClientTime(new Date().toLocaleTimeString());
-  }, []);
+  const clientTime = useMemo(() => new Date().toLocaleTimeString(), []);
 
   const {
     opportunities,
@@ -88,14 +87,14 @@ export function BetOpportunities() {
     handleToggleColumn,
   } = useBetOpportunitiesTable({
     initialPageSize: 10,
-    initialSortColumn: 'event_time',
-    initialSortDirection: 'desc',
+    initialSortColumn: "event_time",
+    initialSortDirection: "desc",
   });
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const filteredOpportunities =
-    filter === 'all'
+    filter === "all"
       ? opportunities
       : opportunities.filter((opp) => opp.confidence === filter);
 
@@ -105,7 +104,7 @@ export function BetOpportunities() {
 
   const getSortIcon = (column: keyof Bet) => {
     if (column === sortColumn) {
-      return sortDirection === 'asc' ? (
+      return sortDirection === "asc" ? (
         <ArrowUp className="h-4 w-4 transition-transform duration-200" />
       ) : (
         <ArrowDown className="h-4 w-4 transition-transform duration-200" />
@@ -119,10 +118,10 @@ export function BetOpportunities() {
     try {
       // Simulate export delay
       await new Promise((res) => setTimeout(res, 1200));
-      // TODO: Replace with actual export logic
-      alert('CSV exported!'); // Replace with toast if available
+      // TODO: Replace with toast notification
+      console.log("CSV exported!");
     } catch (e) {
-      alert('Failed to export CSV.');
+      console.error("Failed to export CSV.");
     } finally {
       setExportLoading(false);
     }
@@ -151,11 +150,13 @@ export function BetOpportunities() {
   };
 
   const handleBulkExport = () => {
-    alert(`Exporting ${selectedIds.length} selected opportunities (stub)`);
+    console.log(
+      `Exporting ${selectedIds.length} selected opportunities (stub)`
+    );
   };
 
   const handleBulkSave = () => {
-    alert(`Saved ${selectedIds.length} selected opportunities (stub)`);
+    console.log(`Saved ${selectedIds.length} selected opportunities (stub)`);
   };
 
   return (
@@ -180,7 +181,7 @@ export function BetOpportunities() {
       <CardContent>
         <OpportunitiesToolbar
           filter={filter}
-          onClearFilter={() => setFilter('all')}
+          onClearFilter={() => setFilter("all")}
           selectedCount={selectedIds.length}
           onBulkExport={handleBulkExport}
           onBulkSave={handleBulkSave}
@@ -213,8 +214,8 @@ export function BetOpportunities() {
         />
         <div className="flex justify-between items-center pt-4 border-t border-gray-200">
           <span className="text-sm text-gray-600">
-            {totalCount} opportunities found. Last updated:{' '}
-            {clientTime ? clientTime : '--'}.
+            {totalCount} opportunities found. Last updated:{" "}
+            {clientTime ? clientTime : "--"}.
           </span>
           <div className="flex gap-2">
             <Button
@@ -229,12 +230,12 @@ export function BetOpportunities() {
                   Exporting...
                 </span>
               ) : (
-                'Export to CSV'
+                "Export to CSV"
               )}
             </Button>
             <Button
               onClick={() =>
-                window.open('https://sportsbook.draftkings.com', '_blank')
+                window.open("https://sportsbook.draftkings.com", "_blank")
               }
               aria-label="Open DraftKings"
             >

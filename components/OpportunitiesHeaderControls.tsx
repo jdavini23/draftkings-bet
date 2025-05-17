@@ -23,11 +23,11 @@ export type OpportunitiesTableColumnKey =
   | "actions";
 
 interface OpportunitiesHeaderControlsProps {
-  filter: string;
-  setFilter: (newFilter: string) => void;
-  visibleColumns: Record<OpportunitiesTableColumnKey, boolean>; 
-  handleToggleColumn: (columnKey: OpportunitiesTableColumnKey) => void; 
-  columnNames: { key: OpportunitiesTableColumnKey; label: string }[]; 
+  filter: 'all' | 'low' | 'medium' | 'high';
+  setFilter: (newFilter: 'all' | 'low' | 'medium' | 'high') => void;
+  visibleColumns: Record<OpportunitiesTableColumnKey, boolean>;
+  handleToggleColumn: (columnKey: OpportunitiesTableColumnKey) => void;
+  columnNames: { key: OpportunitiesTableColumnKey; label: string }[];
 }
 
 export function OpportunitiesHeaderControls({
